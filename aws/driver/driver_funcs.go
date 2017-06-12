@@ -38,6 +38,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/cloudwatch"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ecr"
+	"github.com/aws/aws-sdk-go/service/ecs"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/rds"
@@ -169,6 +170,108 @@ func removeString(arr []string, s string) (out []string) {
 		}
 	}
 	return
+}
+
+func (d *EcsDriver) Create_Container_DryRun(params map[string]interface{}) (interface{}, error) {
+	if _, ok := params["name"]; !ok {
+		return nil, errors.New("create container: missing required params 'name'")
+	}
+	if _, ok := params["cluster"]; !ok {
+		return nil, errors.New("create container: missing required params 'cluster'")
+	}
+	if _, ok := params["image"]; !ok {
+		return nil, errors.New("create container: missing required params 'image'")
+	}
+	if _, ok := params["memory-hard-limit"]; !ok {
+		return nil, errors.New("create container: missing required params 'memory-hard-limit'")
+	}
+	if _, ok := params["desired-count"]; !ok {
+		return nil, errors.New("create container: missing required params 'desired-count'")
+	}
+
+	d.logger.Verbose("params dry run: create container ok")
+	return nil, nil
+}
+
+func (d *EcsDriver) Create_Container(params map[string]interface{}) (interface{}, error) {
+	containerName := fmt.Sprint(params["name"])
+	input := &ecs.RegisterTaskDefinitionInput{
+		ContainerDefinitions: []*ecs.ContainerDefinition{
+			{Essential: aws.Bool(true), Name: aws.String(containerName)},
+		},
+		Family: aws.String(containerName + "_definition"),
+	}
+	var err error
+
+	if err = setFieldWithType(params["image"], input, "ContainerDefinitions[0].Image", awsstr); err != nil {
+		return nil, err
+	}
+	if err = setFieldWithType(params["memory-hard-limit"], input, "ContainerDefinitions[0].Memory", awsint64); err != nil {
+		return nil, err
+	}
+	if command, ok := params["command"]; ok {
+		switch cc := command.(type) {
+		case string:
+			if err = setFieldWithType(strings.Split(cc, " "), input, "ContainerDefinitions[0].Command", awsstringslice); err != nil {
+				return nil, err
+			}
+		default:
+			if err = setFieldWithType(cc, input, "ContainerDefinitions[0].Command", awsstringslice); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if env, ok := params["env"]; ok {
+		if err = setFieldWithType(env, input, "ContainerDefinitions[0].Environment", awsecskeyvalue); err != nil {
+			return nil, err
+		}
+	}
+	if priv, ok := params["privileged"]; ok && fmt.Sprint(priv) == "true" {
+		if err = setFieldWithType(true, input, "ContainerDefinitions[0].Privileged", awsbool); err != nil {
+			return nil, err
+		}
+	}
+	if workdir, ok := params["workdir"]; ok {
+		if err = setFieldWithType(workdir, input, "ContainerDefinitions[0].WorkingDirectory", awsstr); err != nil {
+			return nil, err
+		}
+	}
+	start := time.Now()
+	taskDefOutput, err := d.RegisterTaskDefinition(input)
+	if err != nil {
+		return nil, fmt.Errorf("create container: register task definition: %s", err)
+	}
+	d.logger.ExtraVerbosef("ecs.RegisterTaskDefinitionOutput call took %s", time.Since(start))
+	d.logger.ExtraVerbosef("create container: register task definition '%s' done", aws.StringValue(taskDefOutput.TaskDefinition.Family))
+
+	serviceInput := &ecs.CreateServiceInput{}
+	if err = setFieldWithType(params["cluster"], serviceInput, "Cluster", awsstr); err != nil {
+		return nil, err
+	}
+	if err = setFieldWithType(params["desired-count"], serviceInput, "DesiredCount", awsint64); err != nil {
+		return nil, err
+	}
+	if err = setFieldWithType(containerName+"_service", serviceInput, "ServiceName", awsstr); err != nil {
+		return nil, err
+	}
+	if err = setFieldWithType(aws.StringValue(taskDefOutput.TaskDefinition.TaskDefinitionArn), serviceInput, "TaskDefinition", awsstr); err != nil {
+		return nil, err
+	}
+	if role, ok := params["role"]; ok {
+		if err = setFieldWithType(role, serviceInput, "Role", awsstr); err != nil {
+			return nil, err
+		}
+	}
+
+	start = time.Now()
+	_, err = d.CreateService(serviceInput)
+	if err != nil {
+		return nil, fmt.Errorf("create container: create service: %s", err)
+	}
+	d.logger.ExtraVerbosef("ecs.CreateService call took %s", time.Since(start))
+
+	d.logger.Infof("create container '%s' done", containerName)
+	return containerName, nil
 }
 
 func (d *IamDriver) Create_Policy_DryRun(params map[string]interface{}) (interface{}, error) {

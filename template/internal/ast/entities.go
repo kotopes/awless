@@ -9,6 +9,7 @@ var entities = map[Entity]struct{}{
 	"alarm":               {},
 	"scalinggroup":        {},
 	"bucket":              {},
+	"container":           {},
 	"containercluster":    {},
 	"database":            {},
 	"distribution":        {},

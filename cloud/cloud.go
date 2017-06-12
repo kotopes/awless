@@ -88,6 +88,7 @@ const (
 	Repository       string = "repository"
 	Registry         string = "registry"
 	ContainerCluster string = "containercluster"
+	Container        string = "container"
 )
 
 type Service interface {
