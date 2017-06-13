@@ -85,10 +85,12 @@ const (
 	//cloudformation
 	Stack string = "stack"
 	//container
-	Repository       string = "repository"
-	Registry         string = "registry"
-	ContainerCluster string = "containercluster"
-	Container        string = "container"
+	Repository              string = "repository"
+	Registry                string = "registry"
+	ContainerCluster        string = "containercluster"
+	ContainerService        string = "containerservice"
+	ContainerTaskDefinition string = "containertaskdefinition"
+	Container               string = "container"
 )
 
 type Service interface {

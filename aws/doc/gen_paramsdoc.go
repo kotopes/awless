@@ -18,7 +18,8 @@ limitations under the License.
 package awsdoc
 
 var generatedParamsDoc = map[string]map[string]string{
-	"attachalarm": {},
+	"attachalarm":                   {},
+	"attachcontainertaskdefinition": {},
 	"attachelasticip": {
 		"allow-reassociation": "For a VPC in an EC2-Classic account, specify true to allow an Elastic IP address that is already associated with an instance or network interface to be reassociated with the specified instance or network interface",
 		"id":               "The allocation ID",
@@ -95,10 +96,11 @@ var generatedParamsDoc = map[string]map[string]string{
 		"acl":  "The canned ACL to apply to the bucket",
 		"name": "",
 	},
-	"createcontainer": {},
 	"createcontainercluster": {
 		"name": "The name of your cluster",
 	},
+	"createcontainerservice":        {},
+	"createcontainertaskdefinition": {},
 	"createdatabase": {
 		"autoupgrade":       "Indicates that minor version patches are applied automatically",
 		"availabilityzone":  "Specifies the name of the Availability Zone the DB instance is located in",

@@ -789,22 +789,38 @@ var DriversDefs = []driversDef{
 					{AwsField: "Cluster", TemplateName: "id", AwsType: "awsstr"},
 				},
 			},
-			//Container
 			{
-				Action: "create", Entity: cloud.Container, ManualFuncDefinition: true,
+				Action: "create", Entity: cloud.ContainerService, ManualFuncDefinition: true,
+				RequiredParams: []param{
+					{TemplateName: "cluster"},
+					{TemplateName: "desired-count"},
+					{TemplateName: "name"},
+					{TemplateName: "containertaskdefinition"},
+				},
+				ExtraParams: []param{
+					{TemplateName: "role"},
+				},
+			},
+			{
+				Action: "create", Entity: cloud.ContainerTaskDefinition, ManualFuncDefinition: true,
 				RequiredParams: []param{
 					{TemplateName: "name"},
-					{TemplateName: "cluster"},
+				},
+			},
+			//Container
+			{
+				Action: "attach", Entity: cloud.ContainerTaskDefinition, ManualFuncDefinition: true,
+				RequiredParams: []param{
+					{TemplateName: "name"},
+					{TemplateName: "container-name"},
 					{TemplateName: "image"},
 					{TemplateName: "memory-hard-limit"},
-					{TemplateName: "desired-count"},
 				},
 				ExtraParams: []param{
 					{TemplateName: "command"},
 					{TemplateName: "env"},
 					{TemplateName: "privileged"},
 					{TemplateName: "workdir"},
-					{TemplateName: "role"},
 				},
 			},
 		},
