@@ -790,29 +790,23 @@ var DriversDefs = []driversDef{
 				},
 			},
 			{
-				Action: "create", Entity: cloud.ContainerService, ManualFuncDefinition: true,
+				Action: "start", Entity: cloud.ContainerService, ManualFuncDefinition: true,
 				RequiredParams: []param{
 					{TemplateName: "cluster"},
 					{TemplateName: "desired-count"},
 					{TemplateName: "name"},
-					{TemplateName: "containertaskdefinition"},
+					{TemplateName: "deployment-name"},
 				},
 				ExtraParams: []param{
 					{TemplateName: "role"},
 				},
 			},
-			{
-				Action: "create", Entity: cloud.ContainerTaskDefinition, ManualFuncDefinition: true,
-				RequiredParams: []param{
-					{TemplateName: "name"},
-				},
-			},
 			//Container
 			{
-				Action: "attach", Entity: cloud.ContainerTaskDefinition, ManualFuncDefinition: true,
+				Action: "create", Entity: cloud.Container, ManualFuncDefinition: true,
 				RequiredParams: []param{
 					{TemplateName: "name"},
-					{TemplateName: "container-name"},
+					{TemplateName: "service"},
 					{TemplateName: "image"},
 					{TemplateName: "memory-hard-limit"},
 				},

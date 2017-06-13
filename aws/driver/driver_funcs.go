@@ -172,36 +172,53 @@ func removeString(arr []string, s string) (out []string) {
 	return
 }
 
-func (d *EcsDriver) Attach_Containertaskdefinition_DryRun(params map[string]interface{}) (interface{}, error) {
+func (d *EcsDriver) Create_Container_DryRun(params map[string]interface{}) (interface{}, error) {
 	if _, ok := params["name"]; !ok {
-		return nil, errors.New("attach containertaskdefinition: missing required params 'name'")
+		return nil, errors.New("create container: missing required params 'name'")
 	}
-	if _, ok := params["container-name"]; !ok {
-		return nil, errors.New("attach containertaskdefinition: missing required params 'container-name'")
+	if _, ok := params["service"]; !ok {
+		return nil, errors.New("create container: missing required params 'service'")
 	}
 	if _, ok := params["image"]; !ok {
-		return nil, errors.New("attach containertaskdefinition: missing required params 'image'")
+		return nil, errors.New("create container: missing required params 'image'")
 	}
 	if _, ok := params["memory-hard-limit"]; !ok {
-		return nil, errors.New("attach containertaskdefinition: missing required params 'memory-hard-limit'")
+		return nil, errors.New("create container: missing required params 'memory-hard-limit'")
 	}
-	d.logger.Verbose("params dry run: attach containertaskdefinition ok")
+	d.logger.Verbose("params dry run: create container ok")
 	return nil, nil
 }
 
-func (d *EcsDriver) Attach_Containertaskdefinition(params map[string]interface{}) (interface{}, error) {
+func (d *EcsDriver) Create_Container(params map[string]interface{}) (interface{}, error) {
+	var taskDefinitionInput *ecs.RegisterTaskDefinitionInput
+	taskDefinitionName := fmt.Sprint(params["service"])
+
 	taskdefOutput, err := d.DescribeTaskDefinition(&ecs.DescribeTaskDefinitionInput{
-		TaskDefinition: aws.String(fmt.Sprint(params["name"])),
+		TaskDefinition: aws.String(taskDefinitionName),
 	})
-	if err != nil {
+	if awserr, ok := err.(awserr.Error); err != nil && ok {
+		if awserr.Code() == "ClientException" && strings.Contains(strings.ToLower(awserr.Message()), "unable to describe task definition") {
+			taskDefinitionInput = &ecs.RegisterTaskDefinitionInput{
+				Family: aws.String(taskDefinitionName),
+			}
+		} else {
+			return nil, err
+		}
+	} else if err != nil {
 		return nil, err
-	}
-	if len(taskdefOutput.TaskDefinition.ContainerDefinitions) == 1 && aws.StringValue(taskdefOutput.TaskDefinition.ContainerDefinitions[0].Name) == "awless_init_noop" {
-		taskdefOutput.TaskDefinition.ContainerDefinitions = []*ecs.ContainerDefinition{}
+	} else {
+		taskDefinitionInput = &ecs.RegisterTaskDefinitionInput{
+			ContainerDefinitions: taskdefOutput.TaskDefinition.ContainerDefinitions,
+			Family:               taskdefOutput.TaskDefinition.Family,
+			NetworkMode:          taskdefOutput.TaskDefinition.NetworkMode,
+			PlacementConstraints: taskdefOutput.TaskDefinition.PlacementConstraints,
+			TaskRoleArn:          taskdefOutput.TaskDefinition.TaskRoleArn,
+			Volumes:              taskdefOutput.TaskDefinition.Volumes,
+		}
 	}
 
 	container := &ecs.ContainerDefinition{}
-	if err = setFieldWithType(params["container-name"], container, "Name", awsstr); err != nil {
+	if err = setFieldWithType(params["name"], container, "Name", awsstr); err != nil {
 		return nil, err
 	}
 	if err = setFieldWithType(params["image"], container, "Image", awsstr); err != nil {
@@ -238,53 +255,43 @@ func (d *EcsDriver) Attach_Containertaskdefinition(params map[string]interface{}
 		}
 	}
 
+	taskDefinitionInput.ContainerDefinitions = append(taskDefinitionInput.ContainerDefinitions, container)
+
 	start := time.Now()
 
-	taskDefOutput, err := d.RegisterTaskDefinition(&ecs.RegisterTaskDefinitionInput{
-		ContainerDefinitions: append(taskdefOutput.TaskDefinition.ContainerDefinitions, container),
-		Family:               taskdefOutput.TaskDefinition.Family,
-		NetworkMode:          taskdefOutput.TaskDefinition.NetworkMode,
-		PlacementConstraints: taskdefOutput.TaskDefinition.PlacementConstraints,
-		TaskRoleArn:          taskdefOutput.TaskDefinition.TaskRoleArn,
-		Volumes:              taskdefOutput.TaskDefinition.Volumes,
-	})
+	taskDefOutput, err := d.RegisterTaskDefinition(taskDefinitionInput)
 	if err != nil {
-		return nil, fmt.Errorf("attach containertaskdefinition: register task definition: %s", err)
+		return nil, fmt.Errorf("create container: register task definition: %s", err)
 	}
 	d.logger.ExtraVerbosef("ecs.RegisterTaskDefinitionOutput call took %s", time.Since(start))
-	d.logger.ExtraVerbosef("attach containertaskdefinition: register task definition '%s' done", aws.StringValue(taskDefOutput.TaskDefinition.Family))
+	d.logger.ExtraVerbosef("create container: register task definition '%s' done", aws.StringValue(taskDefOutput.TaskDefinition.Family))
 
-	d.logger.Infof("attach containertaskdefinition '%s' done", aws.StringValue(taskDefOutput.TaskDefinition.TaskRoleArn))
+	d.logger.Infof("create container '%s' done", aws.StringValue(taskDefOutput.TaskDefinition.TaskDefinitionArn))
 	return nil, nil
 }
 
-func (d *EcsDriver) Create_Containerservice_DryRun(params map[string]interface{}) (interface{}, error) {
+func (d *EcsDriver) Start_Containerservice_DryRun(params map[string]interface{}) (interface{}, error) {
 	if _, ok := params["cluster"]; !ok {
-		return nil, errors.New("create containerservice: missing required params 'cluster'")
+		return nil, errors.New("start containerservice: missing required params 'cluster'")
 	}
 
 	if _, ok := params["desired-count"]; !ok {
-		return nil, errors.New("create containerservice: missing required params 'desired-count'")
+		return nil, errors.New("start containerservice: missing required params 'desired-count'")
 	}
 
 	if _, ok := params["name"]; !ok {
-		return nil, errors.New("create containerservice: missing required params 'name'")
+		return nil, errors.New("start containerservice: missing required params 'name'")
 	}
 
-	if _, ok := params["containertaskdefinition"]; !ok {
-		return nil, errors.New("create containerservice: missing required params 'containertaskdefinition'")
+	if _, ok := params["deployment-name"]; !ok {
+		return nil, errors.New("start containerservice: missing required params 'deployment-name'")
 	}
 
-	d.logger.Verbose("params dry run: create containerservice ok")
+	d.logger.Verbose("params dry run: start containerservice ok")
 	return fakeDryRunId("containerservice"), nil
 }
 
-func (d *EcsDriver) Create_Containerservice(params map[string]interface{}) (interface{}, error) {
-	serviceName := fmt.Sprint(params["name"])
-	if serviceName == "" {
-		return nil, errors.New("create containerservice: service name is empty")
-	}
-
+func (d *EcsDriver) Start_Containerservice(params map[string]interface{}) (interface{}, error) {
 	input := &ecs.CreateServiceInput{}
 
 	// Required params
@@ -294,10 +301,10 @@ func (d *EcsDriver) Create_Containerservice(params map[string]interface{}) (inte
 	if err := setFieldWithType(params["desired-count"], input, "DesiredCount", awsint64); err != nil {
 		return nil, err
 	}
-	if err := setFieldWithType(serviceName, input, "ServiceName", awsstr); err != nil {
+	if err := setFieldWithType(params["deployment-name"], input, "ServiceName", awsstr); err != nil {
 		return nil, err
 	}
-	if err := setFieldWithType(params["containertaskdefinition"], input, "TaskDefinition", awsstr); err != nil {
+	if err := setFieldWithType(params["name"], input, "TaskDefinition", awsstr); err != nil {
 		return nil, err
 	}
 
@@ -311,45 +318,12 @@ func (d *EcsDriver) Create_Containerservice(params map[string]interface{}) (inte
 	start := time.Now()
 	output, err := d.CreateService(input)
 	if err != nil {
-		return nil, fmt.Errorf("create containerservice: %s", err)
+		return nil, fmt.Errorf("start containerservice: %s", err)
 	}
 	d.logger.ExtraVerbosef("ecs.CreateService call took %s", time.Since(start))
 	id := aws.StringValue(output.Service.ServiceArn)
 
-	d.logger.Infof("create containerservice '%s' done", id)
-	return id, nil
-}
-
-func (d *EcsDriver) Create_Containertaskdefinition_DryRun(params map[string]interface{}) (interface{}, error) {
-	if _, ok := params["name"]; !ok {
-		return nil, errors.New("create containertaskdefinition: missing required params 'name'")
-	}
-
-	d.logger.Verbose("params dry run: create containertaskdefinition ok")
-	return fakeDryRunId("containertaskdefinition"), nil
-}
-
-func (d *EcsDriver) Create_Containertaskdefinition(params map[string]interface{}) (interface{}, error) {
-	start := time.Now()
-	taskDefOutput, err := d.RegisterTaskDefinition(&ecs.RegisterTaskDefinitionInput{
-		ContainerDefinitions: []*ecs.ContainerDefinition{
-			{
-				Name:   aws.String("awless_init_noop"),
-				Image:  aws.String("hello-world"),
-				Memory: aws.Int64(4),
-			},
-		},
-		Family: aws.String(fmt.Sprint(params["name"])),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("create containertaskdefinition: %s", err)
-	}
-	d.logger.ExtraVerbosef("ecs.RegisterTaskDefinitionOutput call took %s", time.Since(start))
-
-	d.logger.ExtraVerbosef("create containertaskdefinition '%s:%d' done", aws.StringValue(taskDefOutput.TaskDefinition.Family), aws.Int64Value(taskDefOutput.TaskDefinition.Revision))
-
-	id := aws.StringValue(taskDefOutput.TaskDefinition.TaskDefinitionArn)
-	d.logger.Infof("create containerservice '%s' done", id)
+	d.logger.Infof("start containerservice '%s' done", id)
 	return id, nil
 }
 
